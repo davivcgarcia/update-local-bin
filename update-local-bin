@@ -1,0 +1,151 @@
+#! /bin/bash
+
+#######################
+### BASIC INIT
+#######################
+
+# Check for root access
+[ `whoami` = root ] || { sudo "$0" "$@"; exit $?; }
+
+# Set workdir
+cd /usr/local/bin
+
+# Terminal colors
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+NC='\033[0m'
+
+# Helper functions
+
+# Args: <string:component name> <string: component version>
+print_start_msg() {
+    echo -en "Updating ${YELLOW}${1}${NC} to version ${YELLOW}${2}${NC}: "
+}
+
+# Args: <int: exit code>
+print_end_msg() {
+    if [ "${1}" -eq "0" ]; then
+        echo -e "[${GREEN}SUCCESS${NC}]"
+    else
+        echo -e "[${RED}FAILURE${NC}]"
+    fi
+}
+
+# Args: <string:github namespace> <string:github repository> <string:exclude regex> )
+get_latest_github_release() {
+    if [ -z "$2" ]; then
+        set ${1} ${1} 
+    fi
+    if [ -z ${3} ]; then
+        set ${1} ${2} "rc\|alpha\|beta"
+    fi
+    curl -sL -s https://api.github.com/repos/${1}/${2}/releases | \
+        grep tag_name | sed "s/ *\"tag_name\": *\"\\(.*\\)\",*/\\1/" | \
+        grep -v ${3} | \
+        sort -V | tail -n 1
+}
+
+#######################
+### GITHUB REPOS 
+#######################
+
+# Kubectl CLI
+KUBERNETES_LATEST=$(curl -s https://storage.googleapis.com/kubernetes-release/release/stable.txt)
+print_start_msg "Kubectl" ${KUBERNETES_LATEST}
+curl -sL https://storage.googleapis.com/kubernetes-release/release/${KUBERNETES_LATEST}/bin/linux/amd64/kubectl \
+     -o /usr/local/bin/kubectl && \
+     chmod +x /usr/local/bin/kubectl
+print_end_msg $?
+
+# Minikube CLI and KVM2 Driver
+MINIKUBE_LATEST=$(get_latest_github_release kubernetes minikube)
+print_start_msg "Minikube" ${MINIKUBE_LATEST}
+curl -sL https://github.com/kubernetes/minikube/releases/download/${MINIKUBE_LATEST}/minikube-linux-amd64 \
+     -o /usr/local/bin/minikube && \
+     chmod +x /usr/local/bin/minikube
+
+curl -sL https://github.com/kubernetes/minikube/releases/download/${MINIKUBE_LATEST}/docker-machine-driver-kvm2 \
+     -o /usr/local/bin/docker-machine-driver-kvm2 && \
+     chmod +x /usr/local/bin/docker-machine-driver-kvm2
+print_end_msg $?
+
+# Kubernetes Federation CLI
+KUBEFED_LATEST=$(get_latest_github_release kubernetes-sigs kubefed none | sed 's/v//g')
+print_start_msg "Kubefedctl" ${KUBEFED_LATEST}
+curl -sL https://github.com/kubernetes-sigs/kubefed/releases/download/v${KUBEFED_LATEST}/kubefedctl-${KUBEFED_LATEST}-linux-amd64.tgz | \
+     tar xz kubefedctl -C /usr/local/bin
+print_end_msg $?
+
+# Helm CLI
+HELM_LATEST=$(get_latest_github_release helm helm none)
+print_start_msg "Helm" ${HELM_LATEST}
+curl -sL https://get.helm.sh/helm-${HELM_LATEST}-linux-amd64.tar.gz | \
+     tar xz linux-amd64/helm --strip-components=1 -C /usr/local/bin
+print_end_msg $?
+
+# Istioctl CLI
+ISTIO_LATEST=$(get_latest_github_release istio)
+print_start_msg "Istioctl" ${ISTIO_LATEST}
+curl -sL https://github.com/istio/istio/releases/download/${ISTIO_LATEST}/istio-${ISTIO_LATEST}-linux.tar.gz | \
+     tar xz istio-${ISTIO_LATEST}/bin/istioctl --strip-components=2 -C /usr/local/bin
+print_end_msg $?
+
+# Linkerd2 CLI
+LINKERD2_LATEST=$(get_latest_github_release linkerd linkerd2)
+print_start_msg "Linkerd2" ${LINKERD2_LATEST}
+curl -sL https://github.com/linkerd/linkerd2/releases/download/${LINKERD2_LATEST}/linkerd2-cli-${LINKERD2_LATEST}-linux \
+     -o /usr/local/bin/linkerd2 && \
+     chmod +x /usr/local/bin/linkerd2
+print_end_msg $?
+
+# Virtctl CLI
+KUBEVIRT_LATEST=$(get_latest_github_release kubevirt)
+print_start_msg "Virtctl" ${KUBEVIRT_LATEST}
+curl -sL https://github.com/kubevirt/kubevirt/releases/download/${KUBEVIRT_LATEST}/virtctl-${KUBEVIRT_LATEST}-linux-amd64 \
+     -o /usr/local/bin/virtctl && \
+     chmod +x /usr/local/bin/virtctl
+print_end_msg $?
+
+# Tekton CLI
+TEKTON_LATEST=$(get_latest_github_release tektoncd cli | sed 's/v//g')
+print_start_msg "Tkn" ${TEKTON_LATEST}
+curl -sL https://github.com/tektoncd/cli/releases/download/v${TEKTON_LATEST}/tkn_${TEKTON_LATEST}_Linux_x86_64.tar.gz | \
+     tar xz tkn -C /usr/local/bin
+print_end_msg $?
+
+# Operator Framework SDK
+OPERATORSDK_LATEST=$(get_latest_github_release operator-framework operator-sdk)
+print_start_msg "Operator-SDK" ${OPERATORSDK_LATEST}
+curl -sL https://github.com/operator-framework/operator-sdk/releases/download/${OPERATORSDK_LATEST}/operator-sdk-${OPERATORSDK_LATEST}-x86_64-linux-gnu \
+     -o /usr/local/bin/operator-sdk && \
+     chmod +x /usr/local/bin/operator-sdk
+print_end_msg $?
+
+# OpenShift ODO
+ODO_LATEST=$(get_latest_github_release openshift odo none)
+print_start_msg "ODO" ${ODO_LATEST}
+curl -sL https://github.com/openshift/odo/releases/download/${ODO_LATEST}/odo-linux-amd64 \
+     -o /usr/local/bin/odo && \
+     chmod +x /usr/local/bin/odo
+print_end_msg $?
+
+
+#######################
+### OTHER REPOS
+#######################
+
+# Terraform CLI
+TERRAFORM_LATEST=$(curl -s https://releases.hashicorp.com/terraform/ | grep -m 1 -o "terraform_[[:digit:]]*.[[:digit:]]*.[[:digit:]]*" | sed 's/terraform_//g')
+print_start_msg "Terraform" ${TERRAFORM_LATEST}
+curl -sL https://releases.hashicorp.com/terraform/${TERRAFORM_LATEST}/terraform_${TERRAFORM_LATEST}_linux_amd64.zip \
+     -o /usr/local/bin/terraform.zip && \
+     unzip -oq terraform.zip && rm -f terraform.zip
+print_end_msg $?
+
+# OpenShift CLI and Installer
+OPENSHIFT_LATEST=$(curl -s https://mirror.openshift.com/pub/openshift-v4/clients/ocp/latest/release.txt | grep "Name" | grep -o "[[:digit:]]*\.[[:digit:]]*\.[[:digit:]]*")
+print_start_msg "Openshift CLIs" ${OPENSHIFT_LATEST}
+curl -sL https://mirror.openshift.com/pub/openshift-v4/clients/ocp/latest/openshift-install-linux-${OPENSHIFT_LATEST}.tar.gz | tar xz openshift-install
+curl -sL https://mirror.openshift.com/pub/openshift-v4/clients/ocp/latest/openshift-client-linux-${OPENSHIFT_LATEST}.tar.gz | tar xz oc
+print_end_msg $?
